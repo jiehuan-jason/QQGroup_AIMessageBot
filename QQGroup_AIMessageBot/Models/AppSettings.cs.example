@@ -1,0 +1,10 @@
+﻿
+namespace QQGroup_AIMessageBot
+{
+    public class AppSettings
+    {
+        public string ApiKey { get; set; } = "";
+        public string BaseURL { get; set; } = "";
+    }
+
+}
