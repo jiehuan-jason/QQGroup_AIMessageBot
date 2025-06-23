@@ -3,6 +3,6 @@
 ################################################################################
 
 /.vs
-/QQGroup_AIMessageBot/bin/Debug
+/QQGroup_AIMessageBot/bin
 /QQGroup_AIMessageBot/obj
 /QQGroup_AIMessageBot/Models/AppSettings.cs

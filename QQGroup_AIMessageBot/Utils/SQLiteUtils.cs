@@ -167,6 +167,7 @@ namespace QQGroup_AIMessageBot.Utils
                     fs.SetLength(0); // 将文件长度设置为0，从而清空其内容
                 }
                 Console.WriteLine($"原始文件 '{filePath}' 的内容已成功清空。");
+                new SQLiteUtils(filePath); // 重新初始化数据库连接
             }
             catch (IOException ex)
             {

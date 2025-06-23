@@ -2,6 +2,7 @@
 using Microsoft.Graph.Models;
 using QQGroup_AIMessageBot.Models;
 using QQGroup_AIMessageBot.Utils;
+using Serilog.Core;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -11,6 +12,26 @@ public class Program
 {
     const int maxCount = 300;
     const long groupID = 1043884719;
+
+    public static bool SendMessage(String message, WebsocketClient client)
+    {
+        var echo = Guid.NewGuid().ToString("N");
+        var payload = new
+        {
+            action = "send_group_msg",
+            @params = new
+            {
+                group_id = groupID,
+                message = message,
+                auto_escape = false
+            },
+        };
+        var json = JsonSerializer.Serialize(payload);
+        var bytes = Encoding.UTF8.GetBytes(json);
+        byte[] buffer = Encoding.UTF8.GetBytes("Bot online");
+        var isSendSucceed = client.Send(bytes);
+        return isSendSucceed;
+    }
     public static async Task Main(string[] args)
     {
         using ILoggerFactory factory = LoggerFactory.Create(builder =>
@@ -31,25 +52,11 @@ public class Program
 
         var client = new WebsocketClient(new Uri("ws://127.0.0.1:8081"));
 
-        var echo = Guid.NewGuid().ToString("N");
-        var payload = new
-        {
-            action = "send_group_msg",
-            @params = new
-            {
-                group_id = groupID,
-                message = "Bot online",
-                auto_escape = false
-            },
-        };
-        var json = JsonSerializer.Serialize(payload);
-        var bytes = Encoding.UTF8.GetBytes(json);
-        byte[] buffer = Encoding.UTF8.GetBytes("Bot online");
-        logger.LogInformation(Encoding.UTF8.GetString(buffer));
-        var isSendSucceed = client.Send(bytes);
-        if(isSendSucceed)
-            logger.LogInformation("send_group_msg 请求成功！");
-
+        var isSuccess = SendMessage("Bot online", client);
+        if(isSuccess)
+            logger.LogInformation("Bot online message sent successfully.");
+        else
+            logger.LogError("Failed to send bot online message.");
 
         client.ReconnectTimeout = TimeSpan.FromSeconds(10);
         var count = 0;
@@ -58,21 +65,35 @@ public class Program
         {
             if (!msg.Text.StartsWith("{\"interval\":5000"))
             {
-                logger.LogInformation("收到 WS 消息：" + msg.Text);
+                //logger.LogInformation("收到 WS 消息：" + msg.Text);
                 var groupMessage = GroupMessage.Create(msg.Text);
                 if (groupMessage != null)
                 {
                     if (groupMessage.messageType.Equals("text") && groupMessage.groupID.Equals(groupID.ToString()))
                     {
-                        logger.LogInformation("[GroupMessage][" + groupMessage.groupID + "] " + groupMessage.nickname + ": " + groupMessage.data);
-                        database.InsertMessage(groupMessage);
-                        count++;
-                        if (count >= maxCount)
+                        if (groupMessage.data.StartsWith("!aibot"))
                         {
-                            SQLiteUtils.CopyDatabaseFile("messages.db", "messages_backup.db");
-                            SQLiteUtils.TruncateFile("messages.db");
+                            if (groupMessage.data.Equals("!aibot analyze"))
+                            {
+                                SQLiteUtils.CopyDatabaseFile("messages.db", "messages_backup.db");
+                                SQLiteUtils.TruncateFile("messages.db");
 
-                            MessageCounter.OnMaxCountReached();
+                                MessageCounter.OnMaxCountReached();
+                            }
+
+                        }
+                        else
+                        {
+                            logger.LogInformation("[GroupMessage][" + groupMessage.groupID + "] " + groupMessage.nickname + ": " + groupMessage.data);
+                            database.InsertMessage(groupMessage);
+                            count++;
+                            if (count >= maxCount)
+                            {
+                                SQLiteUtils.CopyDatabaseFile("messages.db", "messages_backup.db");
+                                SQLiteUtils.TruncateFile("messages.db");
+
+                                MessageCounter.OnMaxCountReached();
+                            }
                         }
                     }
                 }
@@ -88,6 +109,7 @@ public class Program
         {
             // 这里进行发送或其他操作
             logger.LogInformation("处理结果：" + result);
+            SendMessage(result, client);
             // 例如：client.Send(result);
         };
 
